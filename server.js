@@ -1,7 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { open } from 'sqlite';
-import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +9,7 @@ import qrcode from 'qrcode-terminal';
 import whatsappPkg from 'whatsapp-web.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { db, initializePool, initializeDatabase, getDefaultTenantId, closePool } from './db.js';
 
 const { Client, LocalAuth } = whatsappPkg;
 
@@ -57,7 +56,6 @@ app.use(verifyJWT);
 
 let whatsappClientReady = false;
 let whatsappClient;
-let defaultTenantId = null;
 
 function clearStaleWhatsAppSession() {
   const sessionDir = path.join(__dirname, '.wwebjs_auth');
@@ -147,8 +145,6 @@ async function sendWhatsAppMessage(phoneNumber, message) {
   }
 }
 
-let db;
-
 async function sendOrderInvoiceToCustomer(phoneNumber, customerName, orderNumber, orderId, totalAmount) {
   if (!phoneNumber) return false;
 
@@ -172,255 +168,16 @@ async function sendOrderInvoiceToCustomer(phoneNumber, customerName, orderNumber
   return sent;
 }
 
-// Initialize Database
-async function initDatabase() {
-  db = await open({
-    filename: path.join(__dirname, 'barq.db'),
-    driver: sqlite3.Database
-  });
+// Database is initialized in db.js via initializePool() and initializeDatabase()
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS tenants (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+// Default menu seeding is handled in db.js via seedDefaultMenuProducts()
 
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      email TEXT,
-      role TEXT DEFAULT 'cashier',
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      price REAL NOT NULL,
-      category TEXT,
-      stock INTEGER DEFAULT 0,
-      min_stock INTEGER DEFAULT 5,
-      sku TEXT UNIQUE,
-      image_url TEXT,
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      order_number TEXT UNIQUE NOT NULL,
-      user_id TEXT,
-      total_amount REAL NOT NULL,
-      status TEXT DEFAULT 'pending',
-      payment_method TEXT,
-      payment_status TEXT DEFAULT 'unpaid',
-      customer_name TEXT,
-      customer_phone TEXT,
-      notes TEXT,
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      completed_at DATETIME,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS order_items (
-      id TEXT PRIMARY KEY,
-      order_id TEXT NOT NULL,
-      product_id TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_price REAL NOT NULL,
-      subtotal REAL NOT NULL,
-      modifiers TEXT,
-      tenant_id TEXT,
-      FOREIGN KEY (order_id) REFERENCES orders(id),
-      FOREIGN KEY (product_id) REFERENCES products(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS payments (
-      id TEXT PRIMARY KEY,
-      order_id TEXT NOT NULL,
-      amount REAL NOT NULL,
-      method TEXT,
-      status TEXT DEFAULT 'completed',
-      transaction_id TEXT,
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (order_id) REFERENCES orders(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS stock_movements (
-      id TEXT PRIMARY KEY,
-      product_id TEXT NOT NULL,
-      movement_type TEXT,
-      quantity INTEGER,
-      reason TEXT,
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (product_id) REFERENCES products(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS whatsapp_messages (
-      id TEXT PRIMARY KEY,
-      order_id TEXT,
-      phone_number TEXT NOT NULL,
-      message TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      tenant_id TEXT,
-      sent_at DATETIME,
-      FOREIGN KEY (order_id) REFERENCES orders(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS verification_codes (
-      id TEXT PRIMARY KEY,
-      phone_number TEXT NOT NULL,
-      customer_name TEXT,
-      code TEXT NOT NULL,
-      used INTEGER DEFAULT 0,
-      expires_at DATETIME,
-      tenant_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  const defaultTenantSlug = 'default';
-  const existingDefaultTenant = await db.get('SELECT id FROM tenants WHERE slug = ?', [defaultTenantSlug]);
-  if (!existingDefaultTenant) {
-    defaultTenantId = uuidv4();
-    await db.run('INSERT INTO tenants (id, name, slug) VALUES (?, ?, ?)', [defaultTenantId, 'Default Tenant', defaultTenantSlug]);
-  } else {
-    defaultTenantId = existingDefaultTenant.id;
-  }
-
-  const tenantColumns = [
-    ['users', 'tenant_id'],
-    ['products', 'tenant_id'],
-    ['orders', 'tenant_id'],
-    ['order_items', 'tenant_id'],
-    ['payments', 'tenant_id'],
-    ['stock_movements', 'tenant_id'],
-    ['whatsapp_messages', 'tenant_id'],
-    ['verification_codes', 'tenant_id']
-  ];
-
-  for (const [tableName, columnName] of tenantColumns) {
-    try {
-      await db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} TEXT`);
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.warn(`⚠️ Could not add ${columnName} to ${tableName}:`, error.message);
-      }
-    }
-
-    try {
-      await db.run(`UPDATE ${tableName} SET ${columnName} = ? WHERE ${columnName} IS NULL`, [defaultTenantId]);
-    } catch (error) {
-      console.warn(`⚠️ Could not backfill ${columnName} for ${tableName}:`, error.message);
-    }
-  }
-
-  try {
-    await db.exec('ALTER TABLE orders ADD COLUMN table_number TEXT');
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.warn('⚠️ Could not add table_number column:', error.message);
-    }
-  }
-
-  await seedDefaultMenuProducts();
-
-  console.log('✅ Database initialized');
-}
-
-async function seedDefaultMenuProducts() {
-  const countRow = await db.get('SELECT COUNT(*) AS count FROM products WHERE tenant_id = ?', [defaultTenantId]);
-  if (countRow?.count > 0) {
-    return;
-  }
-
-  const products = [
-    { name: 'سموذي بطيخ', price: 100, category: 'سموثي', sku: 'SMO001', stock: 50 },
-    { name: 'سموذي رمان', price: 100, category: 'سموثي', sku: 'SMO002', stock: 50 },
-    { name: 'سموذي أفوكادو', price: 100, category: 'سموثي', sku: 'SMO003', stock: 50 },
-    { name: 'سموذي فراولة', price: 100, category: 'سموثي', sku: 'SMO004', stock: 50 },
-    { name: 'سموذي مانجو', price: 100, category: 'سموثي', sku: 'SMO005', stock: 50 },
-
-    { name: 'عصير بطيخ', price: 100, category: 'عصائر', sku: 'JUI001', stock: 50 },
-    { name: 'عصير رمان', price: 100, category: 'عصائر', sku: 'JUI002', stock: 50 },
-    { name: 'عصير أفوكادو', price: 100, category: 'عصائر', sku: 'JUI003', stock: 50 },
-    { name: 'عصير فراولة', price: 100, category: 'عصائر', sku: 'JUI004', stock: 50 },
-    { name: 'عصير مانجو', price: 100, category: 'عصائر', sku: 'JUI005', stock: 50 },
-
-    { name: 'ميلك شيك بطيخ', price: 50, category: 'ميلك شيك', sku: 'MLK001', stock: 50 },
-    { name: 'ميلك شيك رمان', price: 50, category: 'ميلك شيك', sku: 'MLK002', stock: 50 },
-    { name: 'ميلك شيك أفوكادو', price: 50, category: 'ميلك شيك', sku: 'MLK003', stock: 50 },
-    { name: 'ميلك شيك فراولة', price: 50, category: 'ميلك شيك', sku: 'MLK004', stock: 50 },
-    { name: 'ميلك شيك مانجو', price: 50, category: 'ميلك شيك', sku: 'MLK005', stock: 50 },
-
-    { name: 'آيس كريم فستق', price: 50, category: 'آيس كريم', sku: 'ICE001', stock: 50 },
-    { name: 'آيس كريم شوكولاتة', price: 50, category: 'آيس كريم', sku: 'ICE002', stock: 50 },
-    { name: 'آيس كريم نوتيلا', price: 50, category: 'آيس كريم', sku: 'ICE003', stock: 50 },
-    { name: 'آيس كريم ميلكينا', price: 50, category: 'آيس كريم', sku: 'ICE004', stock: 50 },
-    { name: 'آيس كريم مانجو', price: 50, category: 'آيس كريم', sku: 'ICE005', stock: 50 },
-    { name: 'آيس كريم موز', price: 50, category: 'آيس كريم', sku: 'ICE006', stock: 50 }
-  ];
-
-  for (const product of products) {
-    await db.run(
-      'INSERT INTO products (id, name, price, category, stock, sku, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuidv4(), product.name, product.price, product.category, product.stock, product.sku, defaultTenantId]
-    );
-  }
-
-  console.log(`✅ Seeded ${products.length} menu products for the default tenant.`);
-}
-
-async function seedMenuProductsForTenant(tenantId) {
-  const products = [
-    { name: 'سموذي بطيخ', price: 100, category: 'سموثي', sku: 'SMO001', stock: 50 },
-    { name: 'سموذي رمان', price: 100, category: 'سموثي', sku: 'SMO002', stock: 50 },
-    { name: 'سموذي أفوكادو', price: 100, category: 'سموثي', sku: 'SMO003', stock: 50 },
-    { name: 'سموذي فراولة', price: 100, category: 'سموثي', sku: 'SMO004', stock: 50 },
-    { name: 'سموذي مانجو', price: 100, category: 'سموثي', sku: 'SMO005', stock: 50 },
-
-    { name: 'عصير بطيخ', price: 100, category: 'عصائر', sku: 'JUI001', stock: 50 },
-    { name: 'عصير رمان', price: 100, category: 'عصائر', sku: 'JUI002', stock: 50 },
-    { name: 'عصير أفوكادو', price: 100, category: 'عصائر', sku: 'JUI003', stock: 50 },
-    { name: 'عصير فراولة', price: 100, category: 'عصائر', sku: 'JUI004', stock: 50 },
-    { name: 'عصير مانجو', price: 100, category: 'عصائر', sku: 'JUI005', stock: 50 },
-
-    { name: 'ميلك شيك بطيخ', price: 50, category: 'ميلك شيك', sku: 'MLK001', stock: 50 },
-    { name: 'ميلك شيك رمان', price: 50, category: 'ميلك شيك', sku: 'MLK002', stock: 50 },
-    { name: 'ميلك شيك أفوكادو', price: 50, category: 'ميلك شيك', sku: 'MLK003', stock: 50 },
-    { name: 'ميلك شيك فراولة', price: 50, category: 'ميلك شيك', sku: 'MLK004', stock: 50 },
-    { name: 'ميلك شيك مانجو', price: 50, category: 'ميلك شيك', sku: 'MLK005', stock: 50 },
-
-    { name: 'آيس كريم فستق', price: 50, category: 'آيس كريم', sku: 'ICE001', stock: 50 },
-    { name: 'آيس كريم شوكولاتة', price: 50, category: 'آيس كريم', sku: 'ICE002', stock: 50 },
-    { name: 'آيس كريم نوتيلا', price: 50, category: 'آيس كريم', sku: 'ICE003', stock: 50 },
-    { name: 'آيس كريم ميلكينا', price: 50, category: 'آيس كريم', sku: 'ICE004', stock: 50 },
-    { name: 'آيس كريم مانجو', price: 50, category: 'آيس كريم', sku: 'ICE005', stock: 50 },
-    { name: 'آيس كريم موز', price: 50, category: 'آيس كريم', sku: 'ICE006', stock: 50 }
-  ];
-
-  for (const product of products) {
-    const uniqueSku = `${product.sku}-${tenantId.slice(0,8)}`;
-    await db.run(
-      'INSERT INTO products (id, name, price, category, stock, sku, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuidv4(), product.name, product.price, product.category, product.stock, uniqueSku, tenantId]
-    );
-  }
-
-  console.log(`✅ Seeded ${products.length} products for tenant ${tenantId}`);
-}
+// Tenant product seeding can be added here if needed
 
 async function resolveTenantId(inputTenantId) {
   const candidate = (inputTenantId || 'default').toString().trim();
   if (!candidate) {
-    return defaultTenantId;
+    return getDefaultTenantId();
   }
 
   const existingTenant = await db.get('SELECT id FROM tenants WHERE id = ? OR slug = ?', [candidate, candidate]);
@@ -1175,7 +932,8 @@ const HOST = process.env.HOST || 'localhost';
 
 async function startServer() {
   try {
-    await initDatabase();
+    await initializePool();
+    await initializeDatabase();
     if (!SKIP_WHATSAPP) initializeWhatsAppClient();
     
     app.listen(PORT, HOST, () => {
@@ -1184,6 +942,7 @@ async function startServer() {
 ║   🚀 Barq Cashier System Started!     ║
 ║   API: http://${HOST}:${PORT}          ║
 ║   Web: http://${HOST}:${PORT}/          ║
+║   Database: PostgreSQL (Neon)         ║
 ╚════════════════════════════════════════╝
       `);
     });
