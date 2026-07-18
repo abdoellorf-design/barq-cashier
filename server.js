@@ -17,6 +17,8 @@ dotenv.config();
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const SKIP_WHATSAPP = (process.env.DISABLE_WHATSAPP === '1' || process.env.DISABLE_WHATSAPP === 'true');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -40,6 +42,10 @@ function clearStaleWhatsAppSession() {
 }
 
 function initializeWhatsAppClient() {
+  if (SKIP_WHATSAPP) {
+    console.log('⚠️ WhatsApp client initialization skipped (DISABLE_WHATSAPP set)');
+    return;
+  }
   clearStaleWhatsAppSession();
 
   whatsappClient = new Client({
@@ -1056,7 +1062,7 @@ const HOST = process.env.HOST || 'localhost';
 async function startServer() {
   try {
     await initDatabase();
-    initializeWhatsAppClient();
+    if (!SKIP_WHATSAPP) initializeWhatsAppClient();
     
     app.listen(PORT, HOST, () => {
       console.log(`

@@ -24,6 +24,23 @@ npm start
 
 Open `http://localhost:3000` (or the port in your `.env`) to view the app.
 
+### Local troubleshooting
+
+- To disable WhatsApp integration (useful for local runs where session folder permissions cause errors):
+
+```powershell
+$env:DISABLE_WHATSAPP = '1'
+$env:PORT = 3001   # optional, change port if 3000 is in use
+npm start
+```
+
+- To run the server on a different port without changing files:
+
+```powershell
+$env:PORT = 3001
+npm start
+```
+
 ## Prepare repository and CI/CD
 
 This repository includes example GitHub Actions workflows to:
