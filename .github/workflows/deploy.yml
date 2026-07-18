@@ -57,9 +57,9 @@ jobs:
     name: Deploy to remote server via SSH (optional)
     needs: build_and_push
     runs-on: ubuntu-latest
-    if: ${{ secrets.SSH_HOST && secrets.SSH_PRIVATE_KEY }}
     steps:
       - name: Pull image and restart container on remote
+        if: ${{ secrets.SSH_HOST && secrets.SSH_PRIVATE_KEY }}
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
