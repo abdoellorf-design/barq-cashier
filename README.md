@@ -1,3 +1,66 @@
+# Barq Cashier
+
+> نظام كاشير بسيط (Express + SQLite + WhatsApp integration)
+
+## Quick start
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Seed demo data (optional):
+
+```bash
+node seed-data.js
+```
+
+3. Start server:
+
+```bash
+npm start
+```
+
+Open `http://localhost:3000` (or the port in your `.env`) to view the app.
+
+## Prepare repository and CI/CD
+
+This repository includes example GitHub Actions workflows to:
+- Run tests (`npm test`)
+- Build and publish a Docker image to GitHub Container Registry (GHCR)
+
+To push and deploy from your GitHub account:
+
+1. Create a new repository on GitHub.
+2. Add this project as a local git repo and push:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/<your-username>/<repo>.git
+git push -u origin main
+```
+
+3. Enable GitHub Actions under your repo Settings → Actions.
+4. (Optional) To publish Docker images to GHCR, grant Actions permission to `packages: write` and add any required secrets.
+
+## Deploy options
+
+- GHCR + your cloud: Build and push Docker image using the provided workflow then deploy that image to your cloud provider (Render, DigitalOcean, AWS, etc.).
+- Render / Heroku: Use provider-specific GitHub integrations or the Actions examples and set provider API key as a repo secret.
+
+## CI files
+- `.github/workflows/ci.yml` — runs tests
+- `.github/workflows/docker-publish.yml` — builds and pushes Docker image to GHCR
+
+## Notes
+- Don't commit `.env` files or `.wwebjs_auth` (WhatsApp session) — they are in `.gitignore`.
+- Make sure to set any runtime secrets in your GitHub repository settings (Secrets → Actions).
+
+If you tell me which deployment target you prefer (Render, Heroku, DigitalOcean App Platform, AWS, etc.), I will add a workflow tailored to it and instructions for required secrets.
 # 🍔 Barq Cashier System
 
 نظام كاشير متكامل للمطاعم والمقاهي مع إدارة الطلبات والدفع والمخزون والتقارير و WhatsApp.
