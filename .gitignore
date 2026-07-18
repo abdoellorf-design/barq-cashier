@@ -1,0 +1,36 @@
+node_modules/
+barq.db
+.wwebjs_auth/
+dist/
+.env
+*.log
+coverage/
+/.vscode/node_modules/
+npm-debug.log
+.env.local
+.env.*.local
+dist/
+build/
+*.db
+*.db-journal
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
+
+# Electron
+out/
+dist/
+release/
+
+# Logs
+logs/
+*.log
+
+# Yarn
+yarn-error.log
+yarn-debug.log

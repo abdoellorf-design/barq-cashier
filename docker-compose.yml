@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  barq-cashier:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+    volumes:
+      - ./barq.db:/app/barq.db
+    restart: unless-stopped
+
+  # MySQL Database (اختياري - إذا أردت قاعدة بيانات خارجية)
+  # db:
+  #   image: mysql:latest
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: barq
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - db_data:/var/lib/mysql
+
+# volumes:
+#   db_data:

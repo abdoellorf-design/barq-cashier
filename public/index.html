@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barq Cashier System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <div class="logo">🍔 Barq</div>
+                <h1>نظام الكاشير</h1>
+                <form id="login-form">
+                    <input type="text" id="login-username" placeholder="اسم المستخدم" required>
+                    <input type="password" id="login-password" placeholder="كلمة المرور" required>
+                    <button type="submit" class="btn btn-primary">دخول</button>
+                </form>
+                <p class="signup-link">ليس لديك حساب؟ <a href="#" onclick="showRegister()">إنشاء حساب</a></p>
+                <p class="signup-link"><a href="customer.html">صفحة العميل العادي</a></p>
+                <p class="signup-link"><a href="kitchen.html">شاشة المطبخ / البار</a></p>
+            </div>
+        </div>
+
+        <!-- Register Screen -->
+        <div id="register-screen" class="screen">
+            <div class="login-container">
+                <div class="logo">🍔 Barq</div>
+                <h1>إنشاء حساب جديد</h1>
+                <form id="register-form">
+                    <input type="text" id="register-username" placeholder="اسم المستخدم" required>
+                    <input type="email" id="register-email" placeholder="البريد الإلكتروني" required>
+                    <input type="password" id="register-password" placeholder="كلمة المرور" required>
+                    <select id="register-role">
+                        <option value="cashier">كاشير</option>
+                        <option value="manager">مدير</option>
+                        <option value="admin">مسؤول</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">إنشاء حساب</button>
+                </form>
+                <p class="signup-link"><a href="#" onclick="showLogin()">العودة للدخول</a></p>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="screen">
+            <nav class="navbar">
+                <div class="navbar-brand">🍔 Barq Cashier</div>
+                <div class="navbar-menu">
+                    <button class="nav-btn active" data-page="orders">الطلبات</button>
+                    <button class="nav-btn" data-page="products">المنتجات</button>
+                    <button class="nav-btn" data-page="stock">المخزون</button>
+                    <button class="nav-btn" data-page="reports">التقارير</button>
+                    <button class="nav-btn" data-page="settings">الإعدادات</button>
+                </div>
+                <div class="user-menu">
+                    <span id="current-user">المستخدم</span>
+                    <button class="btn btn-logout" onclick="logout()">خروج</button>
+                </div>
+            </nav>
+
+            <!-- Orders Page -->
+            <div id="orders-page" class="page active">
+                <div class="page-header">
+                    <h2>نظام الطلبات</h2>
+                    <button class="btn btn-primary" onclick="openNewOrder()">+ طلب جديد</button>
+                </div>
+
+                <!-- New Order Modal -->
+                <div id="order-modal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>طلب جديد</h3>
+                            <button class="close-btn" onclick="closeOrderModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="order-form">
+                                <div class="form-group">
+                                    <label>اسم العميل</label>
+                                    <input type="text" id="order-customer-name" placeholder="اسم العميل">
+                                </div>
+                                <div class="form-group">
+                                    <label>رقم الهاتف</label>
+                                    <input type="tel" id="order-customer-phone" placeholder="+20">
+                                </div>
+
+                                <div class="products-section">
+                                    <h4>اختر المنتجات</h4>
+                                    <div id="products-grid" class="products-grid"></div>
+                                </div>
+
+                                <div class="order-summary">
+                                    <h4>ملخص الطلب</h4>
+                                    <div id="order-items" class="order-items"></div>
+                                    <div class="order-total">
+                                        <span>الإجمالي:</span>
+                                        <span id="order-total-amount">0 ج.م</span>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>ملاحظات</label>
+                                    <textarea id="order-notes" placeholder="ملاحظات خاصة بالطلب"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeOrderModal()">إلغاء</button>
+                            <button class="btn btn-primary" onclick="submitOrder()">تأكيد الطلب</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="orders-list">
+                    <div class="filters">
+                        <input type="text" id="search-orders" placeholder="ابحث عن الطلبات...">
+                        <select id="filter-status">
+                            <option value="">الكل</option>
+                            <option value="pending">قيد الانتظار</option>
+                            <option value="completed">مكتمل</option>
+                            <option value="cancelled">ملغى</option>
+                        </select>
+                    </div>
+                    <table id="orders-table" class="table">
+                        <thead>
+                            <tr>
+                                <th>رقم الطلب</th>
+                                <th>العميل</th>
+                                <th>الترابية</th>
+                                <th>المبلغ</th>
+                                <th>الحالة</th>
+                                <th>الدفع</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Products Page -->
+            <div id="products-page" class="page">
+                <div class="page-header">
+                    <h2>المنتجات</h2>
+                    <button class="btn btn-primary" onclick="openNewProduct()">+ منتج جديد</button>
+                </div>
+
+                <!-- New Product Modal -->
+                <div id="product-modal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>منتج جديد</h3>
+                            <button class="close-btn" onclick="closeProductModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>اسم المنتج</label>
+                                <input type="text" id="product-name" placeholder="اسم المنتج">
+                            </div>
+                            <div class="form-group">
+                                <label>السعر</label>
+                                <input type="number" id="product-price" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>الفئة</label>
+                                <input type="text" id="product-category" placeholder="الفئة">
+                            </div>
+                            <div class="form-group">
+                                <label>الكود</label>
+                                <input type="text" id="product-sku" placeholder="SKU">
+                            </div>
+                            <div class="form-group">
+                                <label>المخزون الأولي</label>
+                                <input type="number" id="product-stock" placeholder="0" min="0">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeProductModal()">إلغاء</button>
+                            <button class="btn btn-primary" onclick="submitProduct()">حفظ المنتج</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filters">
+                    <input type="text" id="search-products" placeholder="ابحث عن المنتجات...">
+                    <select id="filter-category">
+                        <option value="">كل الفئات</option>
+                    </select>
+                </div>
+                <div id="products-list" class="products-grid"></div>
+            </div>
+
+            <!-- Stock Page -->
+            <div id="stock-page" class="page">
+                <div class="page-header">
+                    <h2>إدارة المخزون</h2>
+                </div>
+
+                <div class="stock-sections">
+                    <!-- Low Stock Alert -->
+                    <div class="stock-card alert">
+                        <h3>⚠️ منتجات بالحد الأدنى</h3>
+                        <div id="low-stock-items"></div>
+                    </div>
+
+                    <!-- Stock Movements -->
+                    <div class="stock-card">
+                        <h3>حركات المخزون</h3>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>المنتج</th>
+                                    <th>النوع</th>
+                                    <th>الكمية</th>
+                                    <th>السبب</th>
+                                    <th>التاريخ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-movements-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Page -->
+            <div id="reports-page" class="page">
+                <div class="page-header">
+                    <h2>التقارير</h2>
+                </div>
+
+                <div class="reports-grid">
+                    <!-- Summary Stats -->
+                    <div class="stats-grid" id="stats-grid"></div>
+
+                    <!-- Sales Chart -->
+                    <div class="report-card">
+                        <h3>مبيعات اليوم</h3>
+                        <div id="sales-chart"></div>
+                    </div>
+
+                    <!-- Top Products -->
+                    <div class="report-card">
+                        <h3>أعلى منتجات مبيعاً</h3>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>المنتج</th>
+                                    <th>الكمية المباعة</th>
+                                    <th>الإيرادات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-products-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Date Range Filter -->
+                    <div class="report-card">
+                        <h3>تصفية التقارير</h3>
+                        <div class="form-group">
+                            <label>من</label>
+                            <input type="date" id="report-start-date">
+                        </div>
+                        <div class="form-group">
+                            <label>إلى</label>
+                            <input type="date" id="report-end-date">
+                        </div>
+                        <button class="btn btn-primary" onclick="loadReports()">تحديث التقارير</button>
+                        <button class="btn btn-secondary" onclick="printReports()">طباعة التقرير</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div id="settings-page" class="page">
+                <div class="page-header">
+                    <h2>الإعدادات</h2>
+                </div>
+
+                <div class="settings-card">
+                    <h3>إعدادات WhatsApp</h3>
+                    <div class="form-group">
+                        <label>رقم الهاتف</label>
+                        <input type="text" id="whatsapp-number" placeholder="+20">
+                    </div>
+                    <div class="form-group">
+                        <label>رسالة الطلب الجديد</label>
+                        <textarea id="whatsapp-order-msg" placeholder="شكراً على طلبك #{ORDER_ID}"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveWhatsAppSettings()">حفظ الإعدادات</button>
+                </div>
+
+                <div class="settings-card">
+                    <h3>نسخ احتياطية</h3>
+                    <button class="btn btn-primary" onclick="backupDatabase()">🔄 إنشاء نسخة احتياطية</button>
+                    <button class="btn btn-secondary" onclick="restoreDatabase()">↩️ استعادة نسخة</button>
+                </div>
+
+                <div class="settings-card">
+                    <h3>حول النظام</h3>
+                    <p>Barq Cashier System v1.0</p>
+                    <p>نظام متكامل لإدارة المبيعات والمخزون</p>
+                    <p id="api-status">حالة الـ API: ✅ متصل</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>معالجة الدفع</h3>
+                <button class="close-btn" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>المبلغ المستحق</label>
+                    <div id="payment-amount" class="amount-display">0 ج.م</div>
+                </div>
+                <div class="form-group">
+                    <label>طريقة الدفع</label>
+                    <select id="payment-method">
+                        <option value="cash">نقداً</option>
+                        <option value="card">بطاقة ائتمان</option>
+                        <option value="online">تحويل بنكي</option>
+                    </select>
+                </div>
+                <div class="form-group" id="card-details" style="display:none;">
+                    <label>رقم البطاقة</label>
+                    <input type="text" id="card-number" placeholder="1234 5678 9012 3456">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePaymentModal()">إلغاء</button>
+                <button class="btn btn-primary" onclick="processPayment()">تأكيد الدفع</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

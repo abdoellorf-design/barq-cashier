@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barq Kitchen</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="kitchen-app">
+        <header class="navbar">
+            <div class="navbar-brand">🍔 شاشة المطبخ / البار</div>
+            <div class="user-menu">
+                <a class="btn btn-secondary" href="index.html">رجوع</a>
+            </div>
+        </header>
+
+        <main class="page active" style="margin-top: 80px; padding: 30px;">
+            <section class="kitchen-grid">
+                <div class="kitchen-panel run-panel">
+                    <div class="page-header">
+                        <h2>التشغيل</h2>
+                        <p style="color: var(--gray); margin:0;">عرض المجاميع للمنتجات المتكررة عبر الطلبات المفتوحة.</p>
+                    </div>
+                    <div id="run-summary" class="run-card">
+                        <p style="color: var(--gray);">لا توجد بيانات تشغيل بعد. انتظر تحميل الطلبات أو اضغط تحديث.</p>
+                    </div>
+                </div>
+                <div class="kitchen-panel orders-panel">
+                    <div class="page-header">
+                        <h2>طلبات العملاء</h2>
+                        <p style="color: var(--gray); margin:0;">اضغط قبول ثم جاهز عندما يكون الطلب جاهز للشحن أو للتسليم.</p>
+                    </div>
+
+                    <div class="filters" style="margin-bottom:20px; gap:10px; align-items:center; display:flex;">
+                        <input id="kitchen-search" type="text" placeholder="ابحث برقم الطلب أو اسم العميل" style="flex:1;">
+                        <button id="refresh-orders" class="btn btn-secondary">تحديث</button>
+                    </div>
+
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>رقم الطلب</th>
+                                <th>العميل</th>
+                                <th>الترابية</th>
+                                <th>الهاتف</th>
+                                <th>الإجمالي</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kitchen-orders-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="kitchen.js"></script>
+</body>
+</html>
