@@ -3,11 +3,19 @@ const API_URL = 'http://localhost:3000/api';
 const currentTenantId = new URLSearchParams(window.location.search).get('tenantId') || 'default';
 
 function buildHeaders(extra = {}) {
-    return {
+    const headers = {
         'Content-Type': 'application/json',
         'x-tenant-id': currentTenantId,
         ...extra
     };
+    
+    // Add JWT token if available
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
 }
 
 // Global State
@@ -25,7 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     checkApiHealth();
     // Try to load user from localStorage
     const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
+    const authToken = localStorage.getItem('authToken');
+    if (savedUser && authToken) {
         currentUser = JSON.parse(savedUser);
         showDashboard();
     }
@@ -74,10 +83,14 @@ async function handleLogin(e) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
 
+        // Save token and user
         currentUser = data.user;
+        localStorage.setItem('authToken', data.token);
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         document.getElementById('current-user').textContent = currentUser.username;
         
+        // Clear form
+        document.getElementById('login-form').reset();
         showDashboard();
     } catch (error) {
         alert('خطأ في الدخول: ' + error.message);
@@ -101,8 +114,15 @@ async function handleRegister(e) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
 
-        alert('تم إنشاء الحساب بنجاح! يرجى الدخول.');
-        showLogin();
+        // Auto-login after registration
+        currentUser = data.user;
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        document.getElementById('current-user').textContent = currentUser.username;
+        
+        // Clear form
+        document.getElementById('register-form').reset();
+        showDashboard();
     } catch (error) {
         alert('خطأ: ' + error.message);
     }
@@ -111,6 +131,7 @@ async function handleRegister(e) {
 function logout() {
     currentUser = null;
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('authToken');
     showLogin();
 }
 

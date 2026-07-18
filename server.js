@@ -9,6 +9,8 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import qrcode from 'qrcode-terminal';
 import whatsappPkg from 'whatsapp-web.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const { Client, LocalAuth } = whatsappPkg;
 
@@ -17,11 +19,41 @@ dotenv.config();
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const SKIP_WHATSAPP = (process.env.DISABLE_WHATSAPP === '1' || process.env.DISABLE_WHATSAPP === 'true');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// JWT Middleware - verify token if provided
+function verifyJWT(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      req.user = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      console.log('Token verification failed:', err.message);
+    }
+  }
+  next();
+}
+
+// Require JWT - must have valid token
+function requireJWT(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+app.use(verifyJWT);
 
 let whatsappClientReady = false;
 let whatsappClient;
@@ -447,15 +479,46 @@ app.get('/api/tenants', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password, email, role } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
     const tenantId = await resolveTenantId(getTenantIdFromRequest(req));
     const id = uuidv4();
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Check if user already exists
+    const existingUser = await db.get(
+      'SELECT id FROM users WHERE username = ? AND tenant_id = ?',
+      [username, tenantId]
+    );
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
 
     await db.run(
       'INSERT INTO users (id, username, password, email, role, tenant_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, username, password, email, role || 'cashier', tenantId]
+      [id, username, hashedPassword, email, role || 'cashier', tenantId]
     );
 
-    res.json({ success: true, userId: id, tenantId });
+    // Create JWT token
+    const token = jwt.sign(
+      { userId: id, username, role: role || 'cashier', tenantId },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      success: true, 
+      userId: id, 
+      tenantId,
+      token,
+      user: { id, username, email, role: role || 'cashier' }
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -464,17 +527,68 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(401).json({ error: 'Username and password are required' });
+    }
+
     const tenantId = await resolveTenantId(getTenantIdFromRequest(req));
     const user = await db.get(
-      'SELECT * FROM users WHERE username = ? AND password = ? AND tenant_id = ?',
-      [username, password, tenantId]
+      'SELECT * FROM users WHERE username = ? AND tenant_id = ?',
+      [username, tenantId]
     );
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    res.json({ success: true, user, tenantId });
+    // Compare password with hash
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, role: user.role, tenantId },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      success: true, 
+      token,
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        role: user.role 
+      },
+      tenantId 
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Logout endpoint (optional - for token blacklist)
+app.post('/api/auth/logout', requireJWT, async (req, res) => {
+  // Token is invalidated on client side by removing it from localStorage
+  // For production, implement token blacklist in database
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Get current user info
+app.get('/api/auth/me', requireJWT, async (req, res) => {
+  try {
+    const user = await db.get(
+      'SELECT id, username, email, role FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
